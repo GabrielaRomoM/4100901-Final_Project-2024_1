@@ -60,8 +60,27 @@ uint8_t usart2_buffer[USART2_BUFFER_SIZE];
 ring_buffer_t usart2_rb;
 uint8_t usart2_rx;
 
+#define USART3_BUFFER_SIZE 64
+uint8_t usart3_buffer[USART2_BUFFER_SIZE];
+ring_buffer_t usart3_rb;
+uint8_t usart3_rx;
+
 uint32_t left_toggles = 0;
 uint32_t left_last_press_tick = 0;
+
+#define SECURITY_CODE_LENGTH 5
+char security_code[SECURITY_CODE_LENGTH + 1] = "12345";
+char input_code[SECURITY_CODE_LENGTH + 1] = {0}; //Code entered by the user
+int input_index = 0;
+
+volatile uint8_t system_blocked = 1; // Start with system blocked
+volatile uint8_t display_incorrect_message = 0;
+
+volatile uint8_t waiting_for_username = 0;
+volatile uint8_t waiting_for_password = 0;
+volatile uint8_t waiting_for_new_code = 0;
+volatile uint8_t waiting_for_code = 0;
+volatile uint8_t admin_mode = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -86,12 +105,14 @@ int _write(int file, char *ptr, int len)
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   /* Data received in USART2 */
-  if (huart->Instance == USART2) {
-	  usart2_rx = USART2->RDR; // leyendo el byte recibido de USART2
-	  ring_buffer_write(&usart2_rb, usart2_rx); // put the data received in buffer
-	  //HAL_UART_Receive_IT(&huart2, &usart2_rx, 1); // enable interrupt to continue receiving
-	  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); // usando un funcion mas liviana para reducir memoria
-  }
+	 if (huart->Instance == USART2) {
+		  usart2_rx = USART2->RDR; // leyendo el byte recibido de USART2
+		  ring_buffer_write(&usart2_rb, usart2_rx); // put the data received in buffer
+		  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); // usando un funcion mas liviana para reducir memoria
+	 }else if (huart->Instance == USART3){
+        ring_buffer_write(&usart3_rb, usart3_rx);
+        HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
+	 }
 }
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -102,22 +123,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		return;
 	}
 
-	if (GPIO_Pin == BUTTON_RIGHT_Pin) {
-		HAL_UART_Transmit(&huart2, (uint8_t *)"S1\r\n", 4, 10);
-		if (HAL_GetTick() < (left_last_press_tick + 300)) { // if last press was in the last 300ms
-			left_toggles = 0xFFFFFF; // a long time toggling (infinite)
-		} else {
-			left_toggles = 6;
-		}
-		left_last_press_tick = HAL_GetTick();
-	} else if (GPIO_Pin == BUTTON_LEFT_Pin) {
-		left_toggles = 0;
-	}
 }
 
 void low_power_mode()
 {
-#define AWAKE_TIME (10 * 1000) // 10 segundos
+#define AWAKE_TIME (30 * 1000) // 10 segundos
 	static uint32_t sleep_tick = AWAKE_TIME;
 
 	if (sleep_tick > HAL_GetTick()) {
@@ -182,30 +192,19 @@ int main(void)
   MX_USART3_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-
   ssd1306_Init();
-  ssd1306_SetCursor(25, 30);
-  ssd1306_WriteString("Hello World!", Font_7x10, White);
-  ssd1306_UpdateScreen();
-
   ring_buffer_init(&usart2_rb, usart2_buffer, USART2_BUFFER_SIZE);
+  ring_buffer_init(&usart3_rb, usart3_buffer, USART3_BUFFER_SIZE);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   printf("Starting...\r\n");
-  //HAL_UART_Receive_IT(&huart2, &usart2_rx, 1); // enable interrupt for USART2 Rx
-  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); // usando un funcion mas liviana para reducir memoria
+  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE);
+  HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
   while (1) {
-	  if (ring_buffer_is_full(&usart2_rb) != 0) {
-		  printf("Received:\r\n");
-		  while (ring_buffer_is_empty(&usart2_rb) == 0) {
-			  uint8_t data;
-			  ring_buffer_read(&usart2_rb, &data);
-			  HAL_UART_Transmit(&huart2, &data, 1, 10);
-		  }
-		  printf("\r\n");
-	  }
+
 	  low_power_mode();
     /* USER CODE END WHILE */
 
