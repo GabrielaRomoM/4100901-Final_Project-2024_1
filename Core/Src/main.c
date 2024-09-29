@@ -31,6 +31,7 @@
 #include "ring_buffer.h"
 #include "keypad.h"
 #include "led.h"
+#include "admin.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -135,6 +136,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
         block_system();
     } else if (GPIO_Pin == BUTTON_UNLOCK_Pin) {
         unblock_system();
+    }else if (GPIO_Pin == BUTTON_ADMIN_Pin) {
+    	waiting_for_username = 1;
+    	process_admin();
     }
 }
 
@@ -271,6 +275,16 @@ int main(void)
   while (1) {
 
 	  update_led_state();
+
+      if(waiting_for_username == 1){
+    	  read_user();
+      }
+      if (waiting_for_code == 1){
+    	  read_code();
+      }
+      if (waiting_for_new_code == 1){
+    	  read_newcode();
+      }
 
       if (display_incorrect_message) {
           ssd1306_Fill(Black);
