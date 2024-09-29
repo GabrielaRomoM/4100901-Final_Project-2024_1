@@ -30,6 +30,7 @@
 
 #include "ring_buffer.h"
 #include "keypad.h"
+#include "led.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,6 +98,8 @@ void block_system(void);
 void unblock_system(void);
 void process_keypad_input(char key);
 void check_security_code(void);
+
+void update_led_state(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -159,7 +162,7 @@ void check_security_code(void) {
         printf("\r\nCorrect code. System unlocked.\r\n");
         waiting_for_password = 0;
         system_blocked = 0;
-      //  unblock_system_led();
+        unblock_system_led();
     } else {
         printf("\r\nIncorrect code. System remains locked.\r\n");
         display_incorrect_message = 1;
@@ -174,7 +177,7 @@ void check_security_code(void) {
 void block_system() {
     system_blocked = 1;
     waiting_for_password = 0;
-   // block_system_led();
+    block_system_led();
     printf("System blocked\r\n");
 }
 
@@ -183,7 +186,7 @@ void unblock_system() {
         printf("Enter security code:\r\n");
         waiting_for_password = 1;
         clear_input_code();
-        //prepare_for_code_entry();
+        prepare_for_code_entry();
     }
 }
 
@@ -266,6 +269,8 @@ int main(void)
   ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE);
   HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
   while (1) {
+
+	  update_led_state();
 
       if (display_incorrect_message) {
           ssd1306_Fill(Black);
