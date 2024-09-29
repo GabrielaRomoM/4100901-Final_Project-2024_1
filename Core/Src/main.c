@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
@@ -118,7 +117,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 		  usart2_rx = USART2->RDR; // leyendo el byte recibido de USART2
 		  ring_buffer_write(&usart2_rb, usart2_rx); // put the data received in buffer
 		  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); // usando un funcion mas liviana para reducir memoria
-	 }else if (huart->Instance == USART3){
+	 } else if (huart->Instance == USART3){
         ring_buffer_write(&usart3_rb, usart3_rx);
         HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
 	 }
@@ -135,7 +134,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     if (GPIO_Pin == BUTTON_BLOCK_Pin) {
         block_system();
     } else if (GPIO_Pin == BUTTON_UNLOCK_Pin) {
-        unblock_system();
+    	waiting_for_password = 1;
     }else if (GPIO_Pin == BUTTON_ADMIN_Pin) {
     	waiting_for_username = 1;
     	process_admin();
@@ -145,11 +144,10 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 void clear_input_code() {
     memset(input_code, 0, sizeof(input_code));
     input_index = 0;
-    printf("Code cleared\r\n");
 }
 
 void process_keypad_input(char key) {
-    if (waiting_for_password) {
+    if (waiting_for_password == 1) {
         if (key == '#') {
             check_security_code();
         } else if (key == '*') {
@@ -166,21 +164,21 @@ void check_security_code(void) {
         printf("\r\nCorrect code. System unlocked.\r\n");
         waiting_for_password = 0;
         system_blocked = 0;
+        unblock_system();
         unblock_system_led();
     } else {
         printf("\r\nIncorrect code. System remains locked.\r\n");
         display_incorrect_message = 1;
         system_blocked = 1;
         waiting_for_password = 0;
-        // The system will be blocked again after displaying the message
     }
-    // Reset input code
     clear_input_code();
 }
 
 void block_system() {
     system_blocked = 1;
     waiting_for_password = 0;
+    prepare_for_code_entry();
     block_system_led();
     printf("System blocked\r\n");
 }
@@ -188,9 +186,10 @@ void block_system() {
 void unblock_system() {
     if (system_blocked) {
         printf("Enter security code:\r\n");
-        waiting_for_password = 1;
-        clear_input_code();
         prepare_for_code_entry();
+        waiting_for_password = 1;
+        system_blocked = 1;
+        clear_input_code();
     }
 }
 
@@ -290,16 +289,16 @@ int main(void)
           ssd1306_Fill(Black);
           ssd1306_SetCursor(12, 24);
           ssd1306_WriteString("INCORRECT CODE", Font_7x10, White);
-          HAL_Delay(1000);
+          HAL_Delay(200);
           ssd1306_UpdateScreen();
           display_incorrect_message = 0;
           system_blocked = 1;
-      } else if (!system_blocked) {
+      } else if (system_blocked == 0) {
           ssd1306_Fill(Black);
           ssd1306_SetCursor(12, 24);
           ssd1306_WriteString("SYSTEM UNLOCKED", Font_7x10, White);
           ssd1306_UpdateScreen();
-      } else if (waiting_for_password) {
+      } else if (waiting_for_password == 1) {
           ssd1306_Fill(Black);
           ssd1306_SetCursor(12, 24);
           ssd1306_WriteString("ENTER CODE:", Font_7x10, White);
@@ -310,7 +309,7 @@ int main(void)
           ssd1306_Fill(Black);
           ssd1306_SetCursor(12, 24);
           ssd1306_WriteString("SYSTEM BLOCKED", Font_7x10, White);
-          HAL_Delay(200);
+          HAL_Delay(500);
           ssd1306_UpdateScreen();
       }
 
