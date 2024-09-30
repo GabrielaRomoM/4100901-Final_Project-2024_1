@@ -24,13 +24,13 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "ssd1306.h"
-#include "ssd1306_fonts.h"
+#include "ssd1306.h" // OLED display library
+#include "ssd1306_fonts.h" // Fonts for the OLED Display
 
-#include "ring_buffer.h"
-#include "keypad.h"
-#include "led.h"
-#include "admin.h"
+#include "ring_buffer.h" // Handles ring buffer for UART
+#include "keypad.h" // Keypad Input Handler
+#include "led.h" // LED Control Functions
+#include "admin.h" // Admin Mode Functions
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -57,33 +57,35 @@ UART_HandleTypeDef huart2;
 UART_HandleTypeDef huart3;
 
 /* USER CODE BEGIN PV */
-
+// USART Buffers for USART2 and USART3
 #define USART2_BUFFER_SIZE 8
-uint8_t usart2_buffer[USART2_BUFFER_SIZE];
-ring_buffer_t usart2_rb;
-uint8_t usart2_rx;
+uint8_t usart2_buffer[USART2_BUFFER_SIZE]; //Data Buffer for USART2
+ring_buffer_t usart2_rb; // Ring Buffer for USART2
+uint8_t usart2_rx; // Stores byte received from USART2
 
 #define USART3_BUFFER_SIZE 64
-uint8_t usart3_buffer[USART2_BUFFER_SIZE];
-ring_buffer_t usart3_rb;
-uint8_t usart3_rx;
+uint8_t usart3_buffer[USART2_BUFFER_SIZE]; // Data Buffer for USART3
+ring_buffer_t usart3_rb; // Ring Buffer for USART3
+uint8_t usart3_rx; // Stores byte received from USART3
 
-uint32_t left_toggles = 0;
-uint32_t left_last_press_tick = 0;
+// Variables to track system state
+uint32_t left_toggles = 0; // Toggle counter for button
+uint32_t left_last_press_tick = 0; // Last time button was pressed
 
+// Security code settings
 #define SECURITY_CODE_LENGTH 5
-char security_code[SECURITY_CODE_LENGTH + 1] = "12345";
-char input_code[SECURITY_CODE_LENGTH + 1] = {0}; //Code entered by the user
-int input_index = 0;
+char security_code[SECURITY_CODE_LENGTH + 1] = "12345"; //Default security code
+char input_code[SECURITY_CODE_LENGTH + 1] = {0}; // Buffer for user-entered code
+int input_index = 0; // Tracks position in the input code
 
+//System State Flags
 volatile uint8_t system_blocked = 1; // Start with system blocked
-volatile uint8_t display_incorrect_message = 0;
-
-volatile uint8_t waiting_for_username = 0;
-volatile uint8_t waiting_for_password = 0;
-volatile uint8_t waiting_for_new_code = 0;
-volatile uint8_t waiting_for_code = 0;
-volatile uint8_t admin_mode = 0;
+volatile uint8_t display_incorrect_message = 0; // Flag to show incorrect code message
+volatile uint8_t waiting_for_username = 0; // Waiting for username flag
+volatile uint8_t waiting_for_password = 0; // Waiting for code on unlock/block flag
+volatile uint8_t waiting_for_new_code = 0; // Waiting for new security code
+volatile uint8_t waiting_for_code = 0; // Waiting for code on admin mode flag
+volatile uint8_t admin_mode = 0; // Admin mode enabled
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -94,44 +96,45 @@ static void MX_USART2_UART_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_RTC_Init(void);
 /* USER CODE BEGIN PFP */
-void block_system(void);
-void unblock_system(void);
-void process_keypad_input(char key);
-void check_security_code(void);
-
-void update_led_state(void);
-void Time(void);
+// Function Prototypes
+void block_system(void); // Block the system (Locks it)
+void unblock_system(void); // Unblocks the system (Unlocks it)
+void process_keypad_input(char key); //Process input from the keypad
+void check_security_code(void); // Verifies the entered security code
+void update_led_state(void); // Updates the LED state based on system status
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// Custom UART write function for printf output
 int _write(int file, char *ptr, int len)
 {
   HAL_UART_Transmit(&huart2, (uint8_t *)ptr, len, 10);
   return len;
 }
 
+// UART receive complete callback function
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-  /* Data received in USART2 */
 	 if (huart->Instance == USART2) {
-		  usart2_rx = USART2->RDR; // leyendo el byte recibido de USART2
-		  ring_buffer_write(&usart2_rb, usart2_rx); // put the data received in buffer
-		  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); // usando un funcion mas liviana para reducir memoria
+		  usart2_rx = USART2->RDR; // Read received type
+		  ring_buffer_write(&usart2_rb, usart2_rx); // Store it in buffer
+		  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); //Enable interrupt for next byte
 	 } else if (huart->Instance == USART3){
         ring_buffer_write(&usart3_rb, usart3_rx);
-        HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
+        HAL_UART_Receive_IT(&huart3, &usart3_rx, 1); // Restart interrupt reception
 	 }
 }
 
+// Callback function for GPIO (button press)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
 	uint8_t key_pressed = keypad_scan(GPIO_Pin);
 	if (key_pressed != 0xFF) {
-		process_keypad_input(key_pressed);
+		process_keypad_input(key_pressed); //Process Keypad Input if Valid
 		return;
 	}
-
+	// Handle specific button presses (Block, Unlock, Admin mode)
     if (GPIO_Pin == BUTTON_BLOCK_Pin) {
         block_system();
     } else if (GPIO_Pin == BUTTON_UNLOCK_Pin) {
@@ -141,62 +144,62 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     	process_admin();
     }
 }
-
+// Clears the input code buffer
 void clear_input_code() {
-    memset(input_code, 0, sizeof(input_code));
-    input_index = 0;
+    memset(input_code, 0, sizeof(input_code)); //Clear the buffer
+    input_index = 0; // Reset index
 }
-
+// Processes input from keypad
 void process_keypad_input(char key) {
     if (waiting_for_password == 1) {
         if (key == '#') {
-            check_security_code();
+            check_security_code(); //Validate the entered code
         } else if (key == '*') {
-            clear_input_code();
+            clear_input_code(); //Clear the entered code
         } else if (input_index < SECURITY_CODE_LENGTH) {
-            input_code[input_index++] = key;
+            input_code[input_index++] = key; //Add new character to the code
             printf("Code Entered: %s\r\n",input_code);
         }
     }
 }
-
+// Checks if the entered security code is correct
 void check_security_code(void) {
     if (strcmp(input_code, security_code) == 0) {
         printf("\r\nCorrect code. System unlocked.\r\n");
         waiting_for_password = 0;
         system_blocked = 0;
-        unblock_system();
-        unblock_system_led();
+        unblock_system(); // Unlock the system
+        unblock_system_led(); // LEDs active when the system is unlocked correctly
     } else {
         printf("\r\nIncorrect code. System remains locked.\r\n");
-        display_incorrect_message = 1;
+        display_incorrect_message = 1; //Show Error Message
         system_blocked = 1;
-        waiting_for_password = 0;
+        waiting_for_password = 0; // Clear the input code after checking
     }
-    clear_input_code();
+    clear_input_code(); // Reset buffer
 }
 
+// Block (Locks) the system
 void block_system() {
     system_blocked = 1;
     waiting_for_password = 0;
-    prepare_for_code_entry();
-    block_system_led();
+    prepare_for_code_entry(); // Turn off the active LEDs
+    block_system_led(); // Turn on LEDs when the system is blocked correctly
     printf("System blocked\r\n");
 }
-
+// Unblocks (unlocks) the system
 void unblock_system() {
     if (system_blocked) {
-        printf("Enter security code:\r\n");
-        prepare_for_code_entry();
+        prepare_for_code_entry(); // Turn off the active LEDs
         waiting_for_password = 1;
-        system_blocked = 1;
-        clear_input_code();
+        system_blocked = 0;
+        clear_input_code(); // Reset Buffer
     }
 }
 
 void low_power_mode()
 {
-#define AWAKE_TIME (30 * 1000) // 10 segundos
+#define AWAKE_TIME (30 * 1000) // 30 segundos
 	static uint32_t sleep_tick = AWAKE_TIME;
 
 	if (sleep_tick > HAL_GetTick()) {
@@ -261,20 +264,21 @@ int main(void)
   MX_USART3_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-  ssd1306_Init();
-  ring_buffer_init(&usart2_rb, usart2_buffer, USART2_BUFFER_SIZE);
-  ring_buffer_init(&usart3_rb, usart3_buffer, USART3_BUFFER_SIZE);
+  ssd1306_Init(); // Initialize the OLED display
+  ring_buffer_init(&usart2_rb, usart2_buffer, USART2_BUFFER_SIZE); // Initialize USART2 buffer
+  ring_buffer_init(&usart3_rb, usart3_buffer, USART3_BUFFER_SIZE); // Initialize USART3 buffer
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   printf("Starting...\r\n");
-  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE);
-  HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
+  ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE); // Start UART reception interrupt for USART2
+  HAL_UART_Receive_IT(&huart3, &usart3_rx, 1); // Start UART reception interrupt for USART3
   while (1) {
-	  update_led_state();
+	  update_led_state(); // Update LEDs based on system state
 
+	  //Activation of Admin Mode (Process to change password)
       if(waiting_for_username == 1){
     	  read_user();
       }
@@ -285,6 +289,7 @@ int main(void)
     	  read_newcode();
       }
 
+      // Printing messages on OLED accord to the flags and current functions
       if (display_incorrect_message) {
           ssd1306_Fill(Black);
           ssd1306_SetCursor(12, 24);
