@@ -100,6 +100,7 @@ void process_keypad_input(char key);
 void check_security_code(void);
 
 void update_led_state(void);
+void Time(void);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -272,7 +273,6 @@ int main(void)
   ATOMIC_SET_BIT(USART2->CR1, USART_CR1_RXNEIE);
   HAL_UART_Receive_IT(&huart3, &usart3_rx, 1);
   while (1) {
-
 	  update_led_state();
 
       if(waiting_for_username == 1){
@@ -304,6 +304,12 @@ int main(void)
           ssd1306_WriteString("ENTER CODE:", Font_7x10, White);
           ssd1306_SetCursor(12, 40);
           ssd1306_WriteString(input_code, Font_7x10, White);
+          ssd1306_UpdateScreen();
+      } else if (admin_mode == 1){
+          ssd1306_Fill(Black);
+          ssd1306_SetCursor(12, 24);
+          ssd1306_WriteString("ADMIN MODE", Font_7x10, White);
+          HAL_Delay(250);
           ssd1306_UpdateScreen();
       } else {
           ssd1306_Fill(Black);
