@@ -22,8 +22,8 @@ Manually controlled locking and unlocking system, integrating physical periphera
 * Shows the actual state of the lock (UNLOCKED, BLOCKED or ADMIN MODE).
 * Shows the code entered by the user when is trying to UNLOCK the system and notify if the code its incorret.
 
-### Wifi Conection (ESP01):
-* ESP01 connected with ESP-Link to connect to a Wifi network.
+### Wi-fi Conection (ESP01):
+* ESP01 connected with ESP-Link to connect to a Wi-fi network.
 * Remote control of the system through comands sent for Wi-fi through ESP01.
 * To Commands refers to Admin Mode, who let to user change the code after verify their identity (user and actual code).
 * This implementation is realized on a library called Admin. 
