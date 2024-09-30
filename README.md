@@ -1,39 +1,40 @@
-# Advanced Turn Hazard Lights System
-[Ref](https://www.youtube.com/watch?v=3wZVLvbsBrc) - Sistema de luces direccionales avanzadas con conectividad a internet para monitorización y control remoto, integrando periféricos físicos (botones, LEDs, teclado hexadecimal), comunicación en red utilizando el módulo ESP01, y visualización de información en una pantalla OLED SSD1306.
+#  Simple Smart Lock System (Sistema de Candado/Bloqueo Inteligente sencillo)
 
-## Objetivos del Proyecto:
-* Demostrar las habilidades desarrolladas en el diseño de sistemas embebidos con múltiples periféricos.
-* Mostrar información en tiempo real sobre el estado del sistema utilizando la pantalla OLED SSD1306.
-* Crear una plataforma que permita el control remoto de sistemas físicos en tiempo real.
-* Implementar conectividad a internet en un sistema embebido usando un módulo ESP01.
+Sistema de bloqueo y desbloqueo controlado de manera manual, integrando perifericos fisicos (botones, LEDs, teclado hexadecimal), utilizando modulo ESP01 para comunicación en red permitiendo cambio de clave de acceso, y visualización de información en una pantalla OLED SSD1306.
 
-## Requerimientos Funcionales:
+Manually controlled locking and unlocking system, integrating physical peripherals (buttons, LEDs, hexadecimal keyboard), using ESP01 module for network communication allowing password change, and information display on an SSD1306 OLED screen.
 
-### Luces Direccionales:
-* Implementar un sistema de luces direccionales con comportamiento similar al de [Tesla Model 3](https://www.youtube.com/watch?v=3wZVLvbsBrc).
-* Controlar las luces con botones físicos y comandos remotos vía internet.
+## Functional Features:
 
-### Teclado Hexadecimal:
-* Permitir la entrada de comandos específicos para modificar el comportamiento del sistema o encender/apagar luces.
+### Notification LEDs:
+* Implementation of a LED system to notify visually user after do some actions (Block, Correct Unlock, Incorrect Unlock).
+* LEDs are controlled by physical buttons and remote comands (UART).
+* Implementation realized with a library called Led.
 
-### Consola Serial:
-* Interactuar con el sistema a través de una consola en el PC usando USART2.
+### Hexadecimal Keyboard: 
+* Allow the entry of specific commands to unlock the system through a predefined code, and its validation (#) or reset (*).
 
-### Pantalla OLED SSD1306:
-* Mostrar el estado actual de las luces direccionales, el estado de la conexión a internet entre otros valores del sistema.
+### Serial Console:
+* Interact with the system through a console (YAT) on the PC using USART2.
+* Shows on the YAT the most relevant events ocurring between the OLED and the ESP01.
 
-### Conexión a Internet:
-* Utilizar el ESP01 con el stack ESP-Link para conectarse a una red Wi-Fi.
-* Permitir el control remoto del sistema a través de comandos enviados por internet mediante el ESP01.
-* Mantener la hora del sistema usando la conexion a internet y el periférico RTC del STM32L476RG.
+### OLED SSD1306 Screen:
+* Shows the actual state of the lock (UNLOCKED, BLOCKED or ADMIN MODE).
+* Shows the code entered by the user when is trying to UNLOCK the system and notify if the code its incorret.
 
-## Requerimientos No Funcionales:
+### Wifi Conection (ESP01):
+* ESP01 connected with ESP-Link to connect to a Wifi network.
+* Remote control of the system through comands sent for Wi-fi through ESP01.
+* To Commands refers to Admin Mode, who let to user change the code after verify their identity (user and actual code).
+* This implementation is realized on a library called Admin. 
 
-### Tiempo de Respuesta:
-* El sistema debe ser capaz de reaccionar a comandos remotos en menos de 1 segundo.
+## Non-Functional Features:
 
-### Mantenimiento:
-* El código debe estar modularizado para permitir modificaciones o mejoras futuras (particularmente en la librería del teclado, el buffer y la pantalla OLED).
+### Response Time:
+* System reacts to remote commands in at least 2 seconds (it may take longer if it is by ESP01).
 
-### Seguridad:
-* Implementar medidas básicas de autenticación para evitar el acceso no autorizado al sistema a través de la conexión a internet.
+### Maintenance:
+* Code is organized with some libraries to facilite future modifications or improves (libraries include: Keypad, Buffer, LEDs, Admin Mode).
+
+### Security:
+* System implements validations through an USER and CODE to allow changes on the code lock (ADMIN MODE).
